@@ -2,6 +2,11 @@
   "StartingValues": {
     "Name": "ReversedRooms",
     "Characters": [ 1502, 1302, 1203 ]
+    "Position": {
+      "X": -84500,
+      "Y": 164500,
+      "Z": 2000
+    }
   },
   "Features": {
     "TeleportByMapMark": true
