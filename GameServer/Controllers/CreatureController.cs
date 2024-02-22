@@ -1,5 +1,6 @@
 using Core.Config;
 using GameServer.Controllers.Attributes;
+using GameServer.Extensions.Logic;
 using GameServer.Models;
 using GameServer.Network;
 using GameServer.Network.Messages;
@@ -42,7 +43,7 @@ internal class CreatureController : Controller
     }
 
     [NetEvent(MessageId.EntityActiveRequest)]
-    public async Task<ResponseMessage> OnEntityActiveRequest(EntityActiveRequest request)
+    public async Task<RpcResult> OnEntityActiveRequest(EntityActiveRequest request)
     {
         EntityActiveResponse response;
 
@@ -52,7 +53,8 @@ internal class CreatureController : Controller
             _entitySystem.Activate(entity);
             response = new EntityActiveResponse
             {
-                ErrorCode = (int)ErrorCode.Success
+                ErrorCode = (int)ErrorCode.Success,
+                IsVisible = entity.IsVisible
             };
 
             response.ComponentPbs.AddRange(entity.ComponentSystem.Pb);
@@ -67,7 +69,7 @@ internal class CreatureController : Controller
     }
 
     [NetEvent(MessageId.SceneLoadingFinishRequest)]
-    public async Task<ResponseMessage> OnSceneLoadingFinishRequest()
+    public async Task<RpcResult> OnSceneLoadingFinishRequest()
     {
         _modelManager.Creature.OnWorldDone();
         await UpdateAiHate();
@@ -242,19 +244,17 @@ internal class CreatureController : Controller
     {
         for (int i = 0; i < _modelManager.Formation.RoleIds.Length; i++)
         {
-            PlayerEntity entity = _entityFactory.CreatePlayer(_modelManager.Formation.RoleIds[i], _modelManager.Player.Id);
+            int roleId = _modelManager.Formation.RoleIds[i];
+
+            PlayerEntity entity = _entityFactory.CreatePlayer(roleId, _modelManager.Player.Id);
             entity.Pos = _modelManager.Player.Position.Clone();
             entity.IsCurrentRole = i == 0;
 
             _entitySystem.Create(entity);
-            entity.InitProps(_configManager.GetConfig<BasePropertyConfig>(entity.ConfigId)!);
+            entity.ComponentSystem.Get<EntityAttributeComponent>().SetAll(_modelManager.Roles.GetRoleById(roleId)!.GetAttributeList());
 
             CreateConcomitants(entity);
-
-            // Give weapon to entity
-            RoleInfoConfig roleConfig = _configManager.GetConfig<RoleInfoConfig>(entity.ConfigId)!;
-            WeaponConfig weaponConfig = _configManager.GetConfig<WeaponConfig>(roleConfig.InitWeaponItemId)!;
-            entity.WeaponId = weaponConfig.ItemId;
+            entity.WeaponId = _modelManager.Inventory.GetEquippedWeapon(roleId)?.Id ?? 0;
 
             if (i == 0) _modelManager.Creature.PlayerEntityId = entity.Id;
         }
